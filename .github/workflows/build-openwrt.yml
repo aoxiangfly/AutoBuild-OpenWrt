@@ -7,16 +7,8 @@
 #
 name: 编译OpenWrt固件
 on:
-  workflow_dispatch:
-    inputs:
-      ssh:
-        description: 'SSH远程'
-        required: false
-        default: 'ssh-actions'
-
-#定时触发开始编译(把下面两个#去掉开启,时间设置请看定时编译说明)
-  schedule:
-  - cron: 0 16 * * 6
+  watch:
+    types: [started]
 
 env:
   Github: https://github.com/${{github.repository}}
@@ -128,13 +120,6 @@ jobs:
           source "${PATH1}/upgrade.sh" && Diy_Part1
         fi
 
-    - name: SSH连接
-      uses: danshui-git/debugger-action@master
-      if: env.SSH_ACTIONS == 'true' || (github.event.inputs.ssh == 'ssh' && github.event.inputs.ssh  != 'false')
-      env:
-        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-
     - name: 生成配置
       run: |
         cd openwrt
@@ -171,14 +156,7 @@ jobs:
         cd openwrt
         make download -j8
         find dl -size -1024c -exec ls -l {} \;
-        find dl -size -1024c -exec rm -f {} \;
-    
-    - name: 电报通知
-      run: |
-        if [[ "${SERVERCHAN_SCKEY}" == "true" ]]; then
-          curl -k --data chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" --data "text=🎉 主人：
-          您正在使用【${{matrix.target}}】文件夹编译固件中(${{env.CangKu}}仓库的#${{env.Run_number}}号),请耐心等待...... 😋" "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage"
-        fi        
+        find dl -size -1024c -exec rm -f {} \;     
 
     - name: 编译固件
       id: compile
@@ -231,25 +209,6 @@ jobs:
       with:
         name: ${{ env.OpenWrt_name }}-${{ env.CODE }}-${{ env.TARGET_PROFILE }}-firmware-${{ env.Compile_Date }}
         path: ${{ env.FIRMWARE }}
-
-    - name: 固件转存
-      if: steps.organizer.outputs.status == 'success' && env.UPLOAD_COWTRANSFER == 'true' && !cancelled()
-      run: |
-        curl -fsSL git.io/file-transfer | sh
-        ./transfer cow --block 2621440 -s -p 64 --no-progress ${FIRMWARE} 2>&1 | tee cowtransfer.log
-        echo "::warning file=cowtransfer.com::$(cat cowtransfer.log | grep https)"
-        ./transfer wet -s -p 16 --no-progress ${FIRMWARE} 2>&1 | tee wetransfer.log
-        echo "::warning file=wetransfer.com::$(cat wetransfer.log | grep https)"
-    
-    - name: 发布信息
-      if: steps.organizer.outputs.status == 'success' && env.UPLOAD_RELEASE == 'true'
-      run: |
-        echo "### $(date +"%Y年%m月%d号-%H点%M分")" > update_log.txt
-        curl -fsSL git.io/file-transfer | sh
-        ./transfer cow --block 2621440 -s -p 64 --no-progress ${FIRMWARE} 2>&1 | tee cowtransfer.log
-        echo "##### 奶牛快传：$(cat cowtransfer.log | grep https | cut -f3 -d" ")" >> update_log.txt
-        ./transfer wet -s -p 16 --no-progress ${FIRMWARE} 2>&1 | tee wetransfer.log
-        echo "##### WETRANSFER：$(cat wetransfer.log | grep https | cut -f3 -d" ")" >> update_log.txt
     
     - name: 发布固件
       uses: ncipollo/release-action@v1
@@ -276,12 +235,4 @@ jobs:
         name: AutoUpdate
         tag_name: AutoUpdate
         files: openwrt/bin/Firmware/*
-    
-    - name: 电报通知
-      run: |
-        if [[ "${BOT}" == "TRUE" ]]; then
-          if [[ "${SERVERCHAN_SCKEY}" == "true" ]]; then
-            curl -k --data chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" --data "text=我亲爱的✨主人✨：
-            您使用【${{matrix.target}}】文件夹编译的[${{ env.CODE }}-${{ env.TARGET_PROFILE }}]固件(${{env.CangKu}}仓库的#${{env.Run_number}}号)顺利编译完成了！💐" "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage"
-          fi
-        fi
+  
