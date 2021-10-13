@@ -209,30 +209,4 @@ jobs:
       with:
         name: ${{ env.OpenWrt_name }}-${{ env.CODE }}-${{ env.TARGET_PROFILE }}-firmware-${{ env.Compile_Date }}
         path: ${{ env.FIRMWARE }}
-    
-    - name: 发布固件
-      uses: ncipollo/release-action@v1
-      if: steps.organizer.outputs.status == 'success' && env.UPLOAD_RELEASE == 'true'
-      with:
-        name: ${{ env.CODE }}-${{ env.TARGET_PROFILE }}
-        tag: ${{ env.date }}
-        token: ${{ secrets.REPO_TOKEN }}
-        bodyFile: "update_log.txt"
-        artifacts: "${{ env.FIRMWARE }}/*"
         
-    - name: 整理云端更新固件
-      if: steps.compile.outputs.status == 'success' && env.REGULAR_UPDATE == 'true'
-      run: |
-       cd openwrt
-       source "${PATH1}/upgrade.sh" && Diy_Part3
-        
-    - name: 发布云端更新
-      uses: softprops/action-gh-release@v1
-      if: steps.organizer.outputs.status == 'success' && env.REGULAR_UPDATE == 'true'
-      env:
-        GITHUB_TOKEN: ${{ secrets.REPO_TOKEN }}
-      with:
-        name: AutoUpdate
-        tag_name: AutoUpdate
-        files: openwrt/bin/Firmware/*
-  
